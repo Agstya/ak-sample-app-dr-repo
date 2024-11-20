@@ -1,0 +1,7 @@
+steps:
+  - type: lambda
+    function_name: test-lambda
+    payload: '{"key1": "value1"}'
+  - type: state_machine
+    state_machine_arn: arn:aws:states:us-east-1:123456789012:stateMachine:testStateMachine
+    input: '{"param1": "value1"}'
