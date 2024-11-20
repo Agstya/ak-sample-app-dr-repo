@@ -1,0 +1,44 @@
+name: Trigger DR Workflow
+
+on:
+  push:
+    paths:
+      - input.yaml
+  workflow_dispatch:
+
+jobs:
+  trigger-dr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Upload `input.yaml` as Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: input-yaml
+          path: input.yaml
+
+      - name: Trigger Centralized Workflow in DR Repo
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const repoOwner = 'dr-repo-owner';
+            const repoName = 'dr-centralized-repo';
+            const workflowFileName = 'centralized-orchestration.yml';
+            const ref = 'main';
+            const octokit = require('@actions/github').getOctokit(process.env.GITHUB_TOKEN);
+
+            await octokit.rest.actions.createWorkflowDispatch({
+              owner: repoOwner,
+              repo: repoName,
+              workflow_id: workflowFileName,
+              ref: ref,
+              inputs: {
+                artifact_name: 'input-yaml',
+                app_repo: '${{ github.repository }}',
+                branch: '${{ github.ref_name }}'
+              }
+            });
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
