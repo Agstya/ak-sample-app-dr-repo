@@ -1,0 +1,60 @@
+
+name: Centralized Orchestration Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_name:
+        description: 'Artifact name containing input.yaml'
+        required: true
+      app_repo:
+        description: 'Application repository that triggered this workflow'
+        required: true
+      branch:
+        description: 'Branch of the application repository'
+        required: true
+
+jobs:
+  orchestrate:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Checkout Centralized Repository
+      - name: Checkout Centralized Repository
+        uses: actions/checkout@v3
+
+      # Step 2: Download Artifact containing input.yaml
+      - name: Download Artifact with `input.yaml`
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ github.event.inputs.artifact_name }}
+
+      # Step 3: Parse input.yaml
+      - name: Parse `input.yaml`
+        id: parse-yaml
+        run: |
+          python3 <<EOF
+          import yaml
+          import json
+          with open('input.yaml', 'r') as file:
+              steps = yaml.safe_load(file).get('steps', [])
+              print(f"::set-output name=steps::{json.dumps(steps)}")
+          EOF
+        outputs:
+          steps: ${{ steps.parse-yaml.outputs.steps }}
+
+  execute-steps:
+    needs: orchestrate
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        step: ${{ fromJson(needs.orchestrate.outputs.steps) }}
+
+    steps:
+      # Step Execution: Call the published action corresponding to the step type
+      - name: Execute Step: ${{ matrix.step.type }}
+        uses: organization/${{ matrix.step.type }}-action@v1
+        with:
+          function_name: ${{ matrix.step.function_name || '' }}
+          payload: ${{ matrix.step.payload || '{}' }}
+          state_machine_arn: ${{ matrix.step.state_machine_arn || '' }}
+          input: ${{ matrix.step.input || '{}' }}
